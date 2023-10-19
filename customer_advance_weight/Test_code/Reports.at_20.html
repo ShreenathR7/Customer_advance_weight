@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Reports.at_20.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>Reports.at_20.html</h1>
+    <p>Report generated on 12-Oct-2023 at 18:50:35 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>1 tests ran in 633.09 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_retail.py::Test_Logimax::test_Billing</td>
+          <td class="col-duration">632.54</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;Test_code.test_retail.Test_Logimax object at 0x0000021FBE2CFBD0&gt;, booting_function = None<br/><br/>        def test_Billing(self,booting_function):<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().username_inputBox).send_keys(data.Logi_Data().username)<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().password_inputBox).send_keys(data.Logi_Data().password)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().signButton).click()<br/>            sleep(20)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().side_bar).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().customer_order).click()<br/>            Clickable_Name = self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().customer_order).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Clickable name :&#x27;,Clickable_Name)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().creat_order).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Add_order).click()<br/>            sleep(3)<br/>            customer = self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Customer)<br/>            sleep(10)<br/>            customer.send_keys(data.Logi_Data().name)<br/>            sleep(3)<br/>            customer.send_keys(Keys.BACK_SPACE)<br/>            sleep(10)<br/>            se_ver = self.driver.find_elements(By.XPATH, &quot;//ul[@id=&#x27;ui-id-1&#x27;]//li&quot;)<br/>            #print(&#x27;Total&#x27;,len(se_ver))<br/>            customer_name = data.Logi_Data().customer_name<br/>            for element in se_ver:<br/>                if element.text == customer_name:<br/>                    element.click()<br/>                    break<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Customer name : {a}&#x27;.format(a = customer_name))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Order_Branch).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().text_box).send_keys (&#x27;HEAD OFFICE&#x27;)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Select Branch name : {a}&#x27;.format(a = &#x27;HEAD OFFICE&#x27;))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Sales_Employee).click()<br/>            sleep(3)<br/>            employee = self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().text_box)<br/>            employee.send_keys(&#x27;111-Logimax Developer&#x27;)<br/>            employee.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Sales Employee name  : {a}&#x27;.format( a=&#x27;111-Logimax Developer&#x27;))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().balance_type).click()<br/>            type = self.driver.find_element(By.XPATH, &#x27;(//*[@for=&quot;metal_bal_type&quot;])&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Balance Type : {a}&#x27;.format( a=type ))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().tag_order).click()<br/>            tag_order = self.driver.find_element(By.XPATH, &#x27;(//*[@for=&quot;tag_order&quot;])&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Order Type : {a}&#x27;.format( a = tag_order ))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().order_rate).click()<br/>            order_rate = self.driver.find_element(By.XPATH, &#x27;(//*[@for=&quot;customer_order&quot;])[2]&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Rate Type : {a}&#x27;.format( a = order_rate ))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().New_tag_scan).send_keys(data.Logi_Data().Tag_code)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;New Tag Scan  : {a}&#x27;.format( a = data.Logi_Data().Tag_code))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Tag_search).click()<br/>            #sleep(8)<br/>            &#x27;&#x27;&#x27; self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Gross_weight).send_keys(data.Logi_Data().G_weight)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Gross Weight: {a}&#x27;.format(a = data.Logi_Data().G_weight))<br/>    <br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Peace).send_keys(data.Logi_Data().Pcs)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;No Of PCs: {a}&#x27;.format(a = data.Logi_Data().Pcs))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().Wast).send_keys(data.Logi_Data().wast_percentage)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Wast percentage: {a}&#x27;.format(a = data.Logi_Data().wast_percentage))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().Mc_type).click()<br/>            sleep(3)<br/>            Mc_type = self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().text_box)<br/>            Mc_type.send_keys(&#x27;piece&#x27;)<br/>            Mc_type.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;MC Type : {a}&#x27;.format( a = &#x27;piece&#x27;))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().Mc_value).clear()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().Mc_value).send_keys(data.Logi_Data().value)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;MC Value: {a}&#x27;.format(a = data.Logi_Data().value))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().other_charge).click()<br/>            sleep(3)<br/>            Other_charge = Select(self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().Charge_name))<br/>            Other_charge .select_by_value(&#x27;2&#x27;)<br/>            selected_option = Other_charge.first_selected_option<br/>            selected_text = selected_option.text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Charge Name : {a}&#x27;.format(a = selected_text))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().value).clear()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Logi_Locators().value).send_keys(data.Logi_Data().other_charge_value)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Other Charge Value : {a}&#x27;.format(a = data.Logi_Data().other_charge_value))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Save_charge).click()&#x27;&#x27;&#x27;<br/>            sleep(15)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().description).click()<br/>            sleep(5)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().item_description).send_keys(data.Logi_Data().items_describe)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Item Description: {a}&#x27;.format(a = data.Logi_Data().items_describe))<br/>            sleep(5)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().Add_description).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().Due_days).send_keys(data.Logi_Data().no_of_days)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;No Of Due Days : {a}&#x27;.format(a = data.Logi_Data().no_of_days))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().save_page).click()<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;customer Order Create Successfully&#x27;)<br/>            sleep(10)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Order_Branch).click()<br/>            sleep(3)<br/>            branch = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            branch.send_keys(data.Estimation_Data().Branch)<br/>            branch.send_keys(Keys.RETURN)<br/>            sleep(5)<br/>            self.driver.find_element(by=By.ID,value=locators.Logi_Locators().Search).click()<br/>            sleep(5)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().order_search).send_keys(data.Logi_Data().Tag_code)<br/>            sleep(5)<br/>            order_no = (self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().Order_number).text)<br/>            sleep(8)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().side_bar).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().estimation).click()<br/>            Select_option = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().estimation).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Clickable Name : {Select_option}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Add_Estimation).click()<br/>            sleep(8)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Order_Branch).click()<br/>            sleep(3)<br/>            branch = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            branch.send_keys(data.Estimation_Data().Branch)<br/>            branch.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Branch Name : {data.Estimation_Data().Branch}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Sales_Employee).click()<br/>            sleep(3)<br/>            employee = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            employee.send_keys(data.Estimation_Data().Employee_name)<br/>            employee.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Employee Name : {data.Estimation_Data().Employee_name}&#x27;)<br/>            sleep(3)<br/>            customer = self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Customer)<br/>            sleep(10)<br/>            customer.send_keys(data.Estimation_Data().name)<br/>            sleep(3)<br/>            customer.send_keys(Keys.BACK_SPACE)<br/>            sleep(10)<br/>            se_ver = self.driver.find_elements(By.XPATH, &quot;//ul[@id=&#x27;ui-id-1&#x27;]//li&quot;)<br/>            #print(&#x27;Total&#x27;,len(se_ver))<br/>            customer_name = (data.Estimation_Data().customer_name)<br/>            for element in se_ver:<br/>                if element.text == customer_name:<br/>                    element.click()<br/>                    break<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Customer Name : {customer_name}&#x27;)<br/>    <br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Close).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().old_metal).click()<br/>            Estimation_item = self.driver.find_element(By.XPATH,&#x27;//label[text()=&quot;Old Metal &quot;]&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Estimation items : {Estimation_item}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Metals).click()<br/>            sleep(3)<br/>            metals = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            metals.send_keys(data.Estimation_Data().Metals)<br/>            metals.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Metal Name : {data.Estimation_Data().Metals}&#x27;)<br/>            sleep(23)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Metals_Type).click()<br/>            sleep(3)<br/>            Metals_Type = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            Metals_Type.send_keys(data.Estimation_Data().metals_Type)<br/>            Metals_Type.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Metals Type : {data.Estimation_Data().metals_Type}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Category).click()<br/>            sleep(3)<br/>            Category = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            Category.send_keys(data.Estimation_Data().Category)<br/>            Category.send_keys(Keys.RETURN)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Estimation_Locators().purity_metal).send_keys(data.Estimation_Data().purity_value)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;purity metal : {data.Estimation_Data().purity_value}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Estimation_Locators().metal_G_wt).send_keys(data.Estimation_Data().Gross_wt_value)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Metals Gross Weight : {data.Estimation_Data().Gross_wt_value}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Estimation_Locators().metal_D_wt).send_keys(data.Estimation_Data().Dust_wt)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Metals Dust Weight : {data.Estimation_Data().Dust_wt}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.NAME,value=locators.Estimation_Locators().metal_wastage_percentage).send_keys(data.Estimation_Data().non_wastage_per)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Metals wastage percentage : {data.Estimation_Data().non_wastage_per}&#x27;)<br/>            sleep(20)<br/>    <br/>            self.driver.find_element(by=By.NAME,value=locators.Estimation_Locators().Remark).send_keys(data.Estimation_Data().remarks)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Remark : {data.Estimation_Data().remarks}&#x27;)<br/>            sleep(8)<br/>    <br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().save_print).click()<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&quot;Estimation completed successfully&quot;)<br/>    <br/>            sleep(15)<br/>            self.driver.switch_to.window(self.driver.window_handles[0])<br/>            sleep(8)<br/>    <br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Order_Branch).click()<br/>            sleep(3)<br/>            branch = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            branch.send_keys(data.Estimation_Data().Branch)<br/>            branch.send_keys(Keys.RETURN)<br/>            sleep(5)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().order_search).send_keys(data.Estimation_Data().name)<br/>            sleep(5)<br/>            EST_no = (self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().estimation_no).text)<br/>            sleep(8)<br/>    <br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().side_bar).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().Billing).click()<br/>            Clickable_option = self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().Billing).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Clickable option : {Clickable_option}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().Bill).click()<br/>            sleep(3)<br/>            Branch = Select (self.driver.find_element(by=By.ID,value=locators.Bill_locators().Branch))<br/>            Branch.select_by_value(&#x27;1&#x27;)<br/>            selected_option = Branch.first_selected_option<br/>            selected_text = selected_option.text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Cost Centre name : {a}&#x27;.format(a = selected_text))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Sales_Employee).click()<br/>            sleep(3)<br/>            employee = self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().text_box)<br/>            employee.send_keys(&#x27;111-Logimax Developer&#x27;)<br/>            employee.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;billing Sales Employee name  : {a}&#x27;.format( a=&#x27;111-Logimax Developer&#x27;))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Order_advance).click()<br/>            Sale_button = self.driver.find_element(By.XPATH, &#x27;(//*[@class=&quot;custom-label&quot;])[5]&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Billing to : {a}&#x27;.format( a= Sale_button))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Esti).send_keys(EST_no)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Estimation Number:&#x27;,EST_no)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().search).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Order_no).send_keys(order_no)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Customer Order Number:&#x27;,order_no)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().search_order_no).click()<br/>            sleep(3)<br/>            alert_messages = self.driver.find_elements(By.XPATH,&quot;//div[contains(@class, &#x27;alert-danger&#x27;)]&quot;)<br/>    <br/>    # Loop through the warning messages and close them<br/>            for alert_message in alert_messages:<br/>        # Find the close button within each warning message<br/>               close_button = alert_message.find_element(By.XPATH,&quot;.//button[@class=&#x27;close&#x27;]&quot;)<br/>        # Click the close button to dismiss the warning message<br/>               close_button.click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().pop_close).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Total_summary).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Make_payment).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().billing_save).click()<br/>            #bill = self.driver.find_element(by=By.ID,value=locators.Bill_locators().billing_save).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&quot;Billing : Order Advance Option Run Successfully&quot;)<br/>    <br/>            sleep(15)<br/>            self.driver.switch_to.window(self.driver.window_handles[0])<br/>            sleep(8)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Logi_Locators().side_bar).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().estimation).click()<br/>            Select_option = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().estimation).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Clickable Name : {Select_option}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Add_Estimation).click()<br/>            sleep(8)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Order_Branch).click()<br/>            sleep(3)<br/>            branch = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            branch.send_keys(data.Estimation_Data().Branch)<br/>            branch.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Branch Name : {data.Estimation_Data().Branch}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Sales_Employee).click()<br/>            sleep(3)<br/>            employee = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            employee.send_keys(data.Estimation_Data().Employee_name)<br/>            employee.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Employee Name : {data.Estimation_Data().Employee_name}&#x27;)<br/>            sleep(3)<br/>            customer = self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Customer)<br/>            sleep(10)<br/>            customer.send_keys(data.Estimation_Data().name)<br/>            sleep(3)<br/>            customer.send_keys(Keys.BACK_SPACE)<br/>            sleep(10)<br/>            se_ver = self.driver.find_elements(By.XPATH, &quot;//ul[@id=&#x27;ui-id-1&#x27;]//li&quot;)<br/>            #print(&#x27;Total&#x27;,len(se_ver))<br/>            customer_name = (data.Estimation_Data().customer_name)<br/>            for element in se_ver:<br/>                if element.text == customer_name:<br/>                    element.click()<br/>                    break<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Customer Name : {customer_name}&#x27;)<br/>    <br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Close).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Tag).click()<br/>            Estimation_item = self.driver.find_element(By.XPATH,&#x27;//label[text()=&quot;Tag &quot;]&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Estimation items : {Estimation_item}&#x27;)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Order_no_search).send_keys(order_no)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Customer_order_search).click()<br/>            sleep(5)<br/>            Sale_Amount=[]<br/>            Total_Amount = (self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Total_Sale_Amount)).text<br/>            Sale_Amount.append(Total_Amount)<br/>            Total_Sale_Amount = float(Sale_Amount[0])<br/>            #print(Total_Sale_Amount)<br/>    <br/>            sleep(8)<br/>            Paid_Amount = []<br/>            Total_purchase = (self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().Total_Advance_Paid_Amount)).text<br/>            Paid_Amount.append(Total_purchase)<br/>            Total_Purchase_Amount= float(Paid_Amount[0])<br/>           # print(Total_Purchase_Amount)<br/>    <br/>            balance = Total_Purchase_Amount - Total_Sale_Amount<br/>            balance_Amount = abs(round(balance))<br/>            #print(balance_Amount)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().save_print).click()<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&quot;Estimation completed successfully&quot;)<br/>    <br/>            sleep(10)<br/>            self.driver.switch_to.window(self.driver.window_handles[0])<br/>            sleep(5)<br/>    <br/>            self.driver.find_element(by=By.ID,value=locators.Estimation_Locators().Order_Branch).click()<br/>            sleep(3)<br/>            branch = self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().text_box)<br/>            branch.send_keys(data.Estimation_Data().Branch)<br/>            branch.send_keys(Keys.RETURN)<br/>            sleep(5)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().order_search).send_keys(data.Estimation_Data().name)<br/>            sleep(5)<br/>            est_order_no = (self.driver.find_element(by=By.XPATH,value=locators.Estimation_Locators().estimation_no).text)<br/>            sleep(8)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().side_bar).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().Billing).click()<br/>            Clickable_option = self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().Billing).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(f&#x27;Clickable option : {Clickable_option}&#x27;)<br/>            sleep(5)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().Bill).click()<br/>            sleep(5)<br/>            Branch = Select (self.driver.find_element(by=By.ID,value=locators.Bill_locators().Branch))<br/>            Branch.select_by_value(&#x27;1&#x27;)<br/>            selected_option = Branch.first_selected_option<br/>            selected_text = selected_option.text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Cost Centre name : {a}&#x27;.format(a = selected_text))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Sales_Employee).click()<br/>            sleep(3)<br/>            employee = self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().text_box)<br/>            employee.send_keys(&#x27;111-Logimax Developer&#x27;)<br/>            employee.send_keys(Keys.RETURN)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;billing Sales Employee name  : {a}&#x27;.format( a=&#x27;111-Logimax Developer&#x27;))<br/>            sleep(18)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().order_delivery).click()<br/>            Sale_button = self.driver.find_element(By.XPATH, &#x27;(//*[@class=&quot;custom-label&quot;])[8]&#x27;).text<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Billing to : {a}&#x27;.format( a= Sale_button))<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Esti).send_keys(est_order_no)<br/>            assert self.driver.title == &#x27;Logimax Technology | Admin&#x27;<br/>            print(&#x27;Estimation Number:&#x27;,est_order_no)<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().search).click()<br/>            sleep(5)<br/>            alert_messages = self.driver.find_elements(By.XPATH,&quot;//div[contains(@class, &#x27;alert-danger&#x27;)]&quot;)<br/>    <br/>            # Loop through the warning messages and close them<br/>            for alert_message in alert_messages:<br/>            # Find the close button within each warning message<br/>                close_button = alert_message.find_element(By.XPATH,&quot;.//button[@class=&#x27;close&#x27;]&quot;)<br/>            # Click the close button to dismiss the warning message<br/>                close_button.click()<br/>    <br/>            sleep(3)<br/>            self.driver.find_element(by=By.XPATH,value=locators.Bill_locators().pop_close).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Total_summary).click()<br/>            sleep(3)<br/>            self.driver.find_element(by=By.ID,value=locators.Bill_locators().Make_payment).click()<br/>            sleep(3)<br/>&gt;           self.driver.find_element(by=By.ID,value=locators.Bill_locators().Tcs).clear()<br/><br/>test_retail.py:482: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>C:\Users\Dell\AppData\Roaming\Python\Python311\site-packages\selenium\webdriver\remote\webelement.py:117: in clear<br/>    self._execute(Command.CLEAR_ELEMENT)<br/>C:\Users\Dell\AppData\Roaming\Python\Python311\site-packages\selenium\webdriver\remote\webelement.py:395: in _execute<br/>    return self._parent.execute(command, params)<br/>C:\Users\Dell\AppData\Roaming\Python\Python311\site-packages\selenium\webdriver\remote\webdriver.py:345: in execute<br/>    self.error_handler.check_response(response)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x0000021FBBBB9090&gt;<br/>response = {&#x27;status&#x27;: 400, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;element not interactable&quot;,&quot;message&quot;:&quot;Element &lt;input id=\\&quot;tcs_percent\\&quot; ...sys.mjs:193:22\\nreceiveMessage@chrome://remote/content/marionette/actors/MarionetteCommandsChild.sys.mjs:80:16\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;Checks that a JSON response from the WebDriver does not have an<br/>        error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&quot;status&quot;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&quot;value&quot;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>    <br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value) == 1:<br/>                        value = value[&quot;value&quot;]<br/>                    status = value.get(&quot;error&quot;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&quot;message&quot;)<br/>                    else:<br/>                        message = value.get(&quot;message&quot;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        e = ErrorCode()<br/>        error_codes = [item for item in dir(e) if not item.startswith(&quot;__&quot;)]<br/>        for error_code in error_codes:<br/>            error_info = getattr(ErrorCode, error_code)<br/>            if isinstance(error_info, list) and status in error_info:<br/>                exception_class = getattr(ExceptionMapping, error_code, WebDriverException)<br/>                break<br/>        else:<br/>            exception_class = WebDriverException<br/>    <br/>        if not value:<br/>            value = response[&quot;value&quot;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &quot;message&quot; in value:<br/>            message = value[&quot;message&quot;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &quot;screen&quot; in value:<br/>            screen = value[&quot;screen&quot;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&quot;stackTrace&quot;) or value.get(&quot;stacktrace&quot;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&quot;\n&quot;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = frame.get(&quot;lineNumber&quot;, &quot;&quot;)<br/>                        file = frame.get(&quot;fileName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if line:<br/>                            file = f&quot;{file}:{line}&quot;<br/>                        meth = frame.get(&quot;methodName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if &quot;className&quot; in frame:<br/>                            meth = f&quot;{frame[&#x27;className&#x27;]}.{meth}&quot;<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &quot;data&quot; in value:<br/>                alert_text = value[&quot;data&quot;].get(&quot;text&quot;)<br/>            elif &quot;alert&quot; in value:<br/>                alert_text = value[&quot;alert&quot;].get(&quot;text&quot;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.ElementNotInteractableException: Message: Element &lt;input id=&quot;tcs_percent&quot; class=&quot;form-control tcs_percent summary_lbl&quot; name=&quot;billing[tcs_percent]&quot; type=&quot;number&quot;&gt; could not be scrolled into view</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       RemoteError@chrome://remote/content/shared/RemoteError.sys.mjs:8:8</span><br/><span class="error">E       WebDriverError@chrome://remote/content/shared/webdriver/Errors.sys.mjs:189:5</span><br/><span class="error">E       ElementNotInteractableError@chrome://remote/content/shared/webdriver/Errors.sys.mjs:349:5</span><br/><span class="error">E       interaction.clearElement@chrome://remote/content/marionette/interaction.sys.mjs:343:11</span><br/><span class="error">E       clearElement@chrome://remote/content/marionette/actors/MarionetteCommandsChild.sys.mjs:193:22</span><br/><span class="error">E       receiveMessage@chrome://remote/content/marionette/actors/MarionetteCommandsChild.sys.mjs:80:16</span><br/><br/>C:\Users\Dell\AppData\Roaming\Python\Python311\site-packages\selenium\webdriver\remote\errorhandler.py:229: ElementNotInteractableException<br/> ------------------------------Captured stdout call------------------------------ <br/>Clickable name : Customer Orders
+Customer name : RAGHU-9999888891
+Select Branch name : HEAD OFFICE
+Sales Employee name  : 111-Logimax Developer
+Balance Type : Metal Balance
+Order Type : Tag Reserve
+Rate Type : Order Rate(Fixed)
+New Tag Scan  : 4-00079
+Item Description: Use multi colour Stone
+No Of Due Days : 6
+customer Order Create Successfully
+Clickable Name : Estimation
+Branch Name : HEAD OFFICE
+Employee Name : 111-Logimax Developer
+Customer Name : RAGHU-9999888891
+Estimation items : Old Metal
+Metal Name : Gold
+Metals Type : BEATEN GOLD
+purity metal : 75.000
+Metals Gross Weight : 25
+Metals Dust Weight : 2
+Metals wastage percentage : 2
+Remark : Exchange purpose
+Estimation completed successfully
+Clickable option : Billing
+Cost Centre name : HEAD OFFICE
+billing Sales Employee name  : 111-Logimax Developer
+Billing to : ORDER ADVANCE
+Estimation Number: 10
+Customer Order Number: HO23-RO-00085
+Billing : Order Advance Option Run Successfully
+Clickable Name : Estimation
+Branch Name : HEAD OFFICE
+Employee Name : 111-Logimax Developer
+Customer Name : RAGHU-9999888891
+Estimation items : Tag
+Estimation completed successfully
+Clickable option : Billing
+Cost Centre name : HEAD OFFICE
+billing Sales Employee name  : 111-Logimax Developer
+Billing to : ORDER DELIVERY
+Estimation Number: 11
+<br/></div></td></tr></tbody></table></body></html>
